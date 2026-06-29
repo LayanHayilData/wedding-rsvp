@@ -20,7 +20,7 @@ COLUMNS = [
 ]
 
 
-def set_page_style(image_path="background.jpg"):
+def set_page_style(image_path="h.jpg"):
     try:
         with open(image_path, "rb") as img:
             encoded = base64.b64encode(img.read()).decode()
