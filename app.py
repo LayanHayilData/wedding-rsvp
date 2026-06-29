@@ -1,466 +1,578 @@
-import streamlit as st
+import io
+import uuid
+import base64
+from datetime import datetime
+
 import pandas as pd
 import qrcode
-import base64
-import io
-from datetime import datetime
-from pathlib import Path
-
-# =========================
-# Page Config
-# =========================
-st.set_page_config(
-    page_title="ملكة أحمد وليان",
-    page_icon="🤍",
-    layout="centered",
-    initial_sidebar_state="collapsed"
-)
-
-# =========================
-# Helpers
-# =========================
-def image_to_base64(img):
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    return base64.b64encode(buffer.getvalue()).decode()
+import streamlit as st
+import gspread
+from google.oauth2.service_account import Credentials
 
 
-def make_qr(data: str) -> str:
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=8,
-        border=2,
+st.set_page_config(page_title="دعوة", page_icon="🤍", layout="centered")
+
+SHEET_NAME = "guests"
+
+COLUMNS = [
+    "guest_id", "name", "token", "status", "qr_code",
+    "checked_in", "responded_at", "checked_in_at"
+]
+
+
+def set_page_style(image_path="background.jpg"):
+    try:
+        with open(image_path, "rb") as img:
+            encoded = base64.b64encode(img.read()).decode()
+
+        app_background = f"""
+            background-image: url("data:image/jpg;base64,{encoded}");
+            background-size: cover;
+            background-position: center top;
+            background-repeat: no-repeat;
+            background-attachment: scroll;
+            background-color: #f8f6f0;
+        """
+    except FileNotFoundError:
+        app_background = """
+            background: #f8f6f0;
+        """
+
+    st.markdown(f"""
+    <style>
+    #MainMenu {{visibility: hidden;}}
+    header {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    .stDeployButton {{display: none !important;}}
+    [data-testid="stToolbar"] {{display: none !important;}}
+    [data-testid="stDecoration"] {{display: none !important;}}
+    [data-testid="stStatusWidget"] {{display: none !important;}}
+    [data-testid="stHeader"] {{display: none !important;}}
+
+    html, body, [class*="css"] {{
+        direction: rtl;
+        text-align: center;
+        font-family: "Arial", sans-serif;
+    }}
+
+    .stApp {{
+        {app_background}
+    }}
+
+    .block-container {{
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        max-width: 100% !important;
+        min-height: 100vh;
+    }}
+
+    div[data-testid="stVerticalBlock"] {{
+        gap: 0.3rem;
+    }}
+
+    .rsvp-area {{
+        width: min(82vw, 620px);
+        margin: 445px auto 0 auto;
+        padding: 0 12px;
+        text-align: center;
+        direction: rtl;
+        color: #666666;
+    }}
+
+    .guest-name {{
+        color: #666666;
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        margin-bottom: 12px;
+        line-height: 1.8;
+    }}
+
+    .rsvp-text {{
+        color: #6d6d6d;
+        font-size: 21px;
+        line-height: 2;
+        font-weight: 500;
+        margin-bottom: 16px;
+    }}
+
+    .success-text {{
+        color: #666666;
+        font-size: 22px;
+        line-height: 2;
+        font-weight: 600;
+        margin: 10px auto 8px auto;
+    }}
+
+    .qr-note {{
+        color: #777777;
+        font-size: 15px;
+        line-height: 1.8;
+        margin-top: 8px;
+    }}
+
+    .sorry-text {{
+        color: #666666;
+        font-size: 22px;
+        line-height: 2;
+        font-weight: 600;
+        margin-top: 18px;
+    }}
+
+    .home-text {{
+        width: min(82vw, 620px);
+        margin: 445px auto 0 auto;
+        color: #666666;
+        font-size: 21px;
+        line-height: 2;
+        font-weight: 500;
+        text-align: center;
+    }}
+
+    .admin-wrap {{
+        background: rgba(255, 255, 255, 0.90);
+        border: 1px solid rgba(160, 160, 160, 0.25);
+        border-radius: 20px;
+        padding: 24px;
+        margin: 40px auto;
+        max-width: 1100px;
+        text-align: right;
+    }}
+
+    .stButton > button {{
+        background-color: transparent;
+        color: #666666;
+        border: 1.5px solid #9a9a9a;
+        border-radius: 0;
+        padding: 10px 30px;
+        font-size: 18px;
+        font-weight: 600;
+        box-shadow: none;
+        min-height: 45px;
+    }}
+
+    .stButton > button:hover {{
+        background-color: rgba(255, 255, 255, 0.35);
+        color: #444444;
+        border: 1.5px solid #666666;
+    }}
+
+    div[data-testid="stImage"] {{
+        display: flex;
+        justify-content: center;
+        margin-top: 2px;
+        margin-bottom: 0;
+    }}
+
+    div[data-testid="stImage"] img {{
+        border: 1px solid rgba(110, 110, 110, 0.18);
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.55);
+        max-width: 190px !important;
+    }}
+
+    input, textarea {{
+        text-align: right !important;
+        direction: rtl !important;
+    }}
+
+    @media (max-width: 600px) {{
+        .stApp {{
+            background-size: 100% auto;
+        }}
+
+        .rsvp-area,
+        .home-text {{
+            margin-top: 300px;
+            width: 88vw;
+        }}
+
+        .guest-name {{
+            font-size: 22px;
+        }}
+
+        .rsvp-text,
+        .success-text,
+        .sorry-text,
+        .home-text {{
+            font-size: 17px;
+            line-height: 1.9;
+        }}
+
+        .qr-note {{
+            font-size: 13px;
+        }}
+
+        .stButton > button {{
+            font-size: 15px;
+            padding: 8px 14px;
+        }}
+
+        div[data-testid="stImage"] img {{
+            max-width: 150px !important;
+        }}
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+
+set_page_style("background.jpg")
+
+
+def now_str():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+@st.cache_resource(show_spinner=False)
+def get_worksheet():
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=scopes
     )
+
+    client = gspread.authorize(creds)
+    spreadsheet = client.open_by_key(st.secrets["SPREADSHEET_ID"])
+
+    try:
+        ws = spreadsheet.worksheet(SHEET_NAME)
+    except gspread.WorksheetNotFound:
+        ws = spreadsheet.add_worksheet(title=SHEET_NAME, rows=300, cols=len(COLUMNS))
+        ws.append_row(COLUMNS)
+
+    return ws
+
+
+def load_df():
+    ws = get_worksheet()
+    records = ws.get_all_records()
+
+    if not records:
+        return pd.DataFrame(columns=COLUMNS)
+
+    df = pd.DataFrame(records)
+
+    for col in COLUMNS:
+        if col not in df.columns:
+            df[col] = ""
+
+    return df[COLUMNS]
+
+
+def save_df(df):
+    df = df.fillna("")
+    ws = get_worksheet()
+    ws.clear()
+    ws.update([COLUMNS] + df[COLUMNS].astype(str).values.tolist())
+
+
+def init_guests_if_needed():
+    df = load_df()
+
+    if len(df) > 0:
+        return df
+
+    names = (
+        pd.read_csv("guest_names.csv", header=None)[0]
+        .dropna()
+        .astype(str)
+        .str.strip()
+    )
+
+    names = names[names != ""].drop_duplicates().reset_index(drop=True)
+
+    rows = []
+
+    for i, name in enumerate(names, start=1):
+        token = uuid.uuid4().hex[:22]
+        rows.append({
+            "guest_id": f"GUEST-{i:03d}",
+            "name": name,
+            "token": token,
+            "status": "No Response",
+            "qr_code": "",
+            "checked_in": "No",
+            "responded_at": "",
+            "checked_in_at": "",
+        })
+
+    df = pd.DataFrame(rows, columns=COLUMNS)
+    save_df(df)
+
+    return df
+
+
+def qr_image_bytes(data):
+    qr = qrcode.QRCode(version=1, box_size=8, border=2)
     qr.add_data(data)
     qr.make(fit=True)
-    img = qr.make_image(fill_color="#4f4f4f", back_color="white").convert("RGB")
-    return image_to_base64(img)
+
+    img = qr.make_image(fill_color="#555555", back_color="white")
+
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    return buffer
 
 
-def save_local_row(row: dict):
-    path = Path("rsvp_responses.csv")
-    df_new = pd.DataFrame([row])
-    if path.exists():
-        df_old = pd.read_csv(path)
-        df = pd.concat([df_old, df_new], ignore_index=True)
-    else:
-        df = df_new
-    df.to_csv(path, index=False)
+def get_query_param(key):
+    value = st.query_params.get(key, "")
+
+    if isinstance(value, list):
+        return value[0] if value else ""
+
+    return value
 
 
-# =========================
-# CSS
-# =========================
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@400;500;700;800&display=swap');
+def update_guest(token, **updates):
+    df = load_df()
+    idx = df.index[df["token"].astype(str) == str(token)]
 
-html, body, [class*="css"] {
-    direction: rtl;
-}
+    if len(idx) == 0:
+        return False
 
-.stApp {
-    background:
-        linear-gradient(rgba(255,255,255,0.58), rgba(255,255,255,0.58)),
-        repeating-linear-gradient(90deg, rgba(180,170,155,0.18) 0px, rgba(180,170,155,0.18) 1px, transparent 1px, transparent 7px),
-        repeating-linear-gradient(0deg, rgba(180,170,155,0.13) 0px, rgba(180,170,155,0.13) 1px, transparent 1px, transparent 7px),
-        #f6f2eb;
-}
+    i = idx[0]
 
-.block-container {
-    max-width: 760px;
-    padding-top: 2.4rem;
-    padding-bottom: 3rem;
-}
+    for k, v in updates.items():
+        if k in df.columns:
+            df.loc[i, k] = v
 
-/* Hide Streamlit default elements */
-#MainMenu, footer, header {visibility: hidden;}
+    save_df(df)
 
-.invitation-card {
-    width: 100%;
-    max-width: 650px;
-    margin: 0 auto;
-    padding: 10px 18px 28px;
-    text-align: center;
-    color: #77736e;
-}
+    return True
 
-.ornament {
-    font-size: 34px;
-    color: #77736e;
-    letter-spacing: 6px;
-    margin: 0 auto 18px;
-    line-height: 1;
-}
 
-.top-line {
-    font-family: 'Amiri', serif;
-    font-size: 25px;
-    line-height: 1.9;
-    color: #77736e;
-    margin-bottom: 30px;
-}
+def page_guest(token):
+    df = init_guests_if_needed()
+    match = df[df["token"].astype(str) == str(token)]
 
-.blessing {
-    font-family: 'Tajawal', sans-serif;
-    font-size: 20px;
-    color: #77736e;
-    margin: 10px 0 22px;
-}
+    if match.empty:
+        st.error("الرابط غير صحيح أو غير موجود.")
+        return
 
-.monogram {
-    font-family: 'Amiri', serif;
-    font-size: 82px;
-    font-weight: 700;
-    color: #77736e;
-    line-height: 0.95;
-    margin: 8px 0 12px;
-}
+    guest = match.iloc[0]
+    name = guest["name"]
+    status = str(guest["status"])
+    qr_code = str(guest["qr_code"])
 
-.date {
-    font-family: 'Tajawal', sans-serif;
-    font-size: 17px;
-    letter-spacing: 5px;
-    color: #77736e;
-    margin-bottom: 8px;
-    direction: ltr;
-}
+    st.markdown(f"""
+    <div class="rsvp-area" dir="rtl">
+        <div class="guest-name">أهلًا وسهلًا {name}</div>
+    """, unsafe_allow_html=True)
 
-.names {
-    font-family: 'Tajawal', sans-serif;
-    font-size: 21px;
-    color: #77736e;
-    margin-bottom: 24px;
-}
+    if status == "Attending" and qr_code:
+        st.markdown(
+            """
+            <div class="success-text">
+                تم تأكيد حضوركم بنجاح 🤍<br>
+                يسعدنا مشاركتكم لنا هذه المناسبة
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        st.image(qr_image_bytes(qr_code), width=180)
+        st.markdown(
+            """
+            <div class="qr-note">
+                يرجى إبراز هذا الرمز عند بوابة الدخول
+            </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        return
 
-.duaa {
-    font-family: 'Amiri', serif;
-    font-size: 24px;
-    line-height: 1.8;
-    color: #77736e;
-    margin: 16px auto 28px;
-    max-width: 520px;
-}
+    if status == "Not Attending":
+        st.markdown(
+            """
+            <div class="sorry-text">
+                شكرًا لإبلاغنا 🤍<br>
+                أذكرونا بدعوة طيبة
+            </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        return
 
-.form-box {
-    max-width: 560px;
-    margin: 22px auto 20px;
-    padding: 24px 22px;
-    border-radius: 22px;
-    background: rgba(255,255,255,0.42);
-    border: 1px solid rgba(130,120,105,0.13);
-    box-shadow: 0 8px 24px rgba(90,80,70,0.06);
-}
+    st.markdown(
+        """
+        <div class="rsvp-text">
+            نرجو منكم تأكيد الحضور
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-.form-title {
-    font-family: 'Tajawal', sans-serif;
-    font-size: 21px;
-    font-weight: 700;
-    color: #68635f;
-    margin-bottom: 8px;
-    text-align: center;
-}
+    col1, col2 = st.columns(2)
 
-.form-note {
-    font-family: 'Tajawal', sans-serif;
-    font-size: 16px;
-    color: #77736e;
-    margin-bottom: 18px;
-    text-align: center;
-}
-
-.stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] > div {
-    direction: rtl !important;
-    text-align: right !important;
-    border-radius: 14px !important;
-    font-family: 'Tajawal', sans-serif !important;
-}
-
-.stButton > button {
-    width: 100%;
-    border-radius: 16px;
-    border: 0;
-    padding: 0.8rem 1rem;
-    background: #77736e;
-    color: white;
-    font-family: 'Tajawal', sans-serif;
-    font-size: 17px;
-    font-weight: 700;
-}
-
-.stButton > button:hover {
-    background: #625e5a;
-    color: white;
-}
-
-/* Confirmation + QR section: fixed alignment */
-.confirm-wrapper {
-    width: 100%;
-    max-width: 620px;
-    margin: 34px auto 34px;
-    padding: 0 8px;
-    box-sizing: border-box;
-    clear: both;
-}
-
-.confirm-grid {
-    display: grid;
-    grid-template-columns: 1fr 175px;
-    align-items: center;
-    column-gap: 26px;
-    row-gap: 18px;
-    width: 100%;
-    box-sizing: border-box;
-    padding: 22px 22px;
-    border-radius: 24px;
-    background: rgba(255,255,255,0.38);
-    border: 1px solid rgba(130,120,105,0.12);
-    box-shadow: 0 8px 24px rgba(90,80,70,0.05);
-    direction: rtl;
-}
-
-.confirm-text {
-    text-align: right;
-    font-family: 'Tajawal', sans-serif;
-    color: #5f5a56;
-    min-width: 0;
-}
-
-.confirm-text h3 {
-    margin: 0 0 12px;
-    font-size: 23px;
-    font-weight: 800;
-    line-height: 1.5;
-    color: #5d5853;
-}
-
-.confirm-text p {
-    margin: 0 0 12px;
-    font-size: 18px;
-    font-weight: 600;
-    line-height: 1.7;
-}
-
-.confirm-text .gate-note {
-    margin-top: 20px;
-    font-size: 14px;
-    font-weight: 500;
-    color: #77736e;
-}
-
-.qr-holder {
-    width: 175px;
-    height: 175px;
-    justify-self: center;
-    align-self: center;
-    background: #ffffff;
-    border-radius: 16px;
-    padding: 12px;
-    box-sizing: border-box;
-    box-shadow: 0 3px 14px rgba(80,75,70,0.10);
-}
-
-.qr-holder img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-
-.bottom-duaa {
-    font-family: 'Amiri', serif;
-    text-align: center;
-    color: #77736e;
-    font-size: 24px;
-    margin: 36px auto 8px;
-}
-
-.bottom-ornament {
-    text-align: center;
-    font-size: 32px;
-    color: #77736e;
-    letter-spacing: 5px;
-    margin-top: 6px;
-}
-
-/* Mobile alignment */
-@media (max-width: 640px) {
-    .block-container {
-        padding-left: 1rem;
-        padding-right: 1rem;
-        padding-top: 1.2rem;
-    }
-
-    .invitation-card {
-        padding: 6px 2px 20px;
-    }
-
-    .top-line {
-        font-size: 22px;
-        line-height: 1.75;
-        margin-bottom: 24px;
-    }
-
-    .blessing {
-        font-size: 18px;
-    }
-
-    .monogram {
-        font-size: 72px;
-    }
-
-    .duaa {
-        font-size: 21px;
-        line-height: 1.7;
-        margin-bottom: 24px;
-    }
-
-    .confirm-wrapper {
-        margin: 28px auto 30px;
-        padding: 0;
-    }
-
-    .confirm-grid {
-        grid-template-columns: 1fr;
-        padding: 22px 18px;
-        row-gap: 18px;
-        text-align: center;
-    }
-
-    .confirm-text {
-        text-align: center;
-        width: 100%;
-    }
-
-    .confirm-text h3 {
-        font-size: 22px;
-        margin-bottom: 10px;
-    }
-
-    .confirm-text p {
-        font-size: 17px;
-        margin-bottom: 8px;
-    }
-
-    .confirm-text .gate-note {
-        margin-top: 16px;
-        font-size: 14px;
-    }
-
-    .qr-holder {
-        width: 170px;
-        height: 170px;
-        margin: 0 auto;
-    }
-
-    .bottom-duaa {
-        font-size: 22px;
-        margin-top: 34px;
-    }
-}
-</style>
-""", unsafe_allow_html=True)
-
-# =========================
-# Main Invitation
-# =========================
-st.markdown("""
-<div class="invitation-card" dir="rtl">
-    <div class="ornament">⌁ ❦ ⌁</div>
-
-    <div class="top-line">
-        في ليلة يتكامل الفرح<br>
-        والسرور
-    </div>
-
-    <div class="blessing">تم بحمد الله و نعمته عقد قراني</div>
-
-    <div class="monogram">ل أ</div>
-
-    <div class="date">9.10.2026</div>
-    <div class="names">أحمــد & ليــان</div>
-
-    <div class="duaa">
-        اللهم بارك لهما وبارك عليهما<br>
-        واجمع بينهما في خير<br>
-        و أتمم علينا سعادتنا و أرزقنا التمام الجميل
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# =========================
-# Session State
-# =========================
-if "confirmed" not in st.session_state:
-    st.session_state.confirmed = False
-if "guest_name" not in st.session_state:
-    st.session_state.guest_name = ""
-if "guest_count" not in st.session_state:
-    st.session_state.guest_count = 1
-if "qr_base64" not in st.session_state:
-    st.session_state.qr_base64 = ""
-
-# =========================
-# RSVP Form / Confirmation
-# =========================
-if not st.session_state.confirmed:
-    st.markdown('<div class="form-box" dir="rtl">', unsafe_allow_html=True)
-    st.markdown('<div class="form-title">تأكيد الحضور</div>', unsafe_allow_html=True)
-    st.markdown('<div class="form-note">يرجى إدخال بياناتكم أدناه</div>', unsafe_allow_html=True)
-
-    with st.form("rsvp_form", clear_on_submit=False):
-        name = st.text_input("الاسم الكريم", placeholder="اكتبي الاسم هنا")
-        phone = st.text_input("رقم الجوال", placeholder="05xxxxxxxx")
-        guests = st.number_input("عدد الحضور", min_value=1, max_value=10, value=1, step=1)
-        submit = st.form_submit_button("تأكيد الحضور")
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    if submit:
-        if not name.strip():
-            st.warning("فضلاً أدخلي الاسم.")
-        else:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            qr_data = f"Wedding RSVP | Name: {name.strip()} | Guests: {guests} | Time: {timestamp}"
-            qr_base64 = make_qr(qr_data)
-
-            row = {
-                "timestamp": timestamp,
-                "name": name.strip(),
-                "phone": phone.strip(),
-                "guests": int(guests),
-                "qr_data": qr_data,
-            }
-            try:
-                save_local_row(row)
-            except Exception:
-                pass
-
-            st.session_state.confirmed = True
-            st.session_state.guest_name = name.strip()
-            st.session_state.guest_count = int(guests)
-            st.session_state.qr_base64 = qr_base64
+    with col1:
+        if st.button("نعم، سأحضر", use_container_width=True):
+            qr_code = f"MALKA-{token}"
+            update_guest(
+                token,
+                status="Attending",
+                qr_code=qr_code,
+                responded_at=now_str()
+            )
             st.rerun()
 
-else:
-    st.markdown(f"""
-    <div class="confirm-wrapper" dir="rtl">
-        <div class="confirm-grid">
-            <div class="confirm-text">
-                <h3>🤍 تم تأكيد حضوركم بنجاح</h3>
-                <p>يسعدنا مشاركتكم لنا هذه المناسبة</p>
-                <p class="gate-note">يرجى إبراز هذا الرمز عند بوابة الدخول</p>
-            </div>
+    with col2:
+        if st.button("أعتذر عن الحضور", use_container_width=True):
+            update_guest(
+                token,
+                status="Not Attending",
+                qr_code="",
+                responded_at=now_str()
+            )
+            st.rerun()
 
-            <div class="qr-holder">
-                <img src="data:image/png;base64,{st.session_state.qr_base64}" alt="QR Code">
-            </div>
-        </div>
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def page_admin():
+    st.markdown("<div class='admin-wrap'>", unsafe_allow_html=True)
+
+    st.title("لوحة المنظم")
+
+    password = st.text_input("كلمة المرور", type="password")
+
+    if password != st.secrets.get("ADMIN_PASSWORD", "1234"):
+        st.stop()
+
+    df = init_guests_if_needed()
+
+    total = len(df)
+    attending = (df["status"] == "Attending").sum()
+    declined = (df["status"] == "Not Attending").sum()
+    no_response = (df["status"] == "No Response").sum()
+    checked = (df["checked_in"] == "Yes").sum()
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("الإجمالي", total)
+    c2.metric("سيحضر", attending)
+    c3.metric("اعتذر", declined)
+    c4.metric("لم يرد", no_response)
+    c5.metric("تم الدخول", checked)
+
+    st.subheader("توليد روابط المعازيم")
+
+    base_url = st.text_input(
+        "رابط الموقع العام",
+        value="https://wedding-rsvp-qvkmwn6ca7wmeynuyndi7r.streamlit.app"
+    )
+
+    links_df = df[["guest_id", "name", "status", "checked_in"]].copy()
+    links_df["personal_link"] = df["token"].apply(
+        lambda t: f"{base_url.rstrip('/')}/?token={t}"
+    )
+
+    csv = links_df.to_csv(index=False).encode("utf-8-sig")
+
+    st.download_button(
+        "تحميل ملف روابط المعازيم CSV",
+        data=csv,
+        file_name="guest_links.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+
+    st.subheader("جدول المعازيم")
+
+    search = st.text_input("بحث بالاسم")
+    view_df = df.copy()
+
+    if search:
+        view_df = view_df[
+            view_df["name"].astype(str).str.contains(search, case=False, na=False)
+        ]
+
+    st.dataframe(
+        view_df[[
+            "guest_id", "name", "status",
+            "checked_in", "responded_at", "checked_in_at"
+        ]],
+        use_container_width=True
+    )
+
+    st.download_button(
+        "تحميل كل البيانات CSV",
+        data=df.to_csv(index=False).encode("utf-8-sig"),
+        file_name="malka_responses.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def page_checkin():
+    st.markdown("<div class='admin-wrap'>", unsafe_allow_html=True)
+
+    st.title("تسجيل دخول الملكة")
+
+    password = st.text_input("كلمة مرور المنظم", type="password")
+
+    if password != st.secrets.get("ADMIN_PASSWORD", "1234"):
+        st.stop()
+
+    scanned = st.text_input("امسح/اكتب رمز QR هنا")
+
+    if not scanned:
+        st.info("انتظار مسح الرمز...")
+        return
+
+    df = load_df()
+    match = df[df["qr_code"].astype(str) == str(scanned).strip()]
+
+    if match.empty:
+        st.error("رمز غير صحيح. لا يسمح بالدخول.")
+        return
+
+    idx = match.index[0]
+    guest = df.loc[idx]
+
+    if guest["checked_in"] == "Yes":
+        st.error(f"تم استخدام هذا الرمز مسبقًا. لا يسمح بالدخول. الاسم: {guest['name']}")
+        return
+
+    df.loc[idx, "checked_in"] = "Yes"
+    df.loc[idx, "checked_in_at"] = now_str()
+    save_df(df)
+
+    st.success(f"أهلًا {guest['name']} 🤍 تم السماح بالدخول.")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def page_home():
+    st.markdown("""
+    <div class="home-text" dir="rtl">
+        الرجاء استخدام الرابط الشخصي المرسل لكم لتأكيد الحضور.<br>
+        هذا الرابط خاص بكل معزوم.
     </div>
     """, unsafe_allow_html=True)
 
-st.markdown("""
-<div class="bottom-duaa">اعمروني بدعواتكم الصادقة</div>
-<div class="bottom-ornament">⌁ ❦ ⌁</div>
-""", unsafe_allow_html=True)
+
+try:
+    token = get_query_param("token")
+    admin = get_query_param("admin")
+    checkin = get_query_param("checkin")
+
+    if admin == "1":
+        page_admin()
+    elif checkin == "1":
+        page_checkin()
+    elif token:
+        page_guest(token)
+    else:
+        page_home()
+
+except Exception as e:
+    st.error("حدث خطأ في إعدادات التطبيق. تأكدي من وضع Secrets الخاصة بـ Google Sheets في Streamlit Cloud.")
+    st.caption(str(e))
