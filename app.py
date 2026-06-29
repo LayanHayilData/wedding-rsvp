@@ -350,29 +350,6 @@ def page_guest(token):
     status = str(guest["status"])
     qr_code = str(guest["qr_code"])
 
-    st.markdown(f"""
-    <div class="main-card" dir="rtl">
-        <div class="big-title">ملكة</div>
-        <div class="subtitle">
-            بكل الفرح والسرور<br>
-            نتشرف بدعوتكم لمشاركتنا فرحة عقد القران
-        </div>
-    </div>
-
-    <div class="invite-card" dir="rtl">
-        <div class="title">بسم الله الرحمن الرحيم</div>
-        <div class="subtitle">
-            أهلًا وسهلًا<br>
-            <span class="guest-name">{name}</span><br><br>
-
-            يسعدنا دعوتكم لحضور حفل الملكة،<br>
-            ومشاركتنا هذه المناسبة السعيدة.<br><br>
-
-            نسأل الله أن يتمم لنا على خير،<br>
-            ونرجو منكم تأكيد الحضور أدناه.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
     if status == "Attending" and qr_code:
         st.markdown(
