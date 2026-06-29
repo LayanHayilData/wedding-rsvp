@@ -71,8 +71,8 @@ def set_page_style(image_path="background.jpg"):
     }}
 
     .rsvp-area {{
-        margin: 54vh auto 0 auto;
-        width: min(82vw,620px);
+        width: min(86vw, 650px);
+        margin: 52vh auto 0 auto;
         padding: 0 12px;
         text-align: center;
         direction: rtl;
@@ -96,19 +96,52 @@ def set_page_style(image_path="background.jpg"):
         margin-bottom: 16px;
     }}
 
+    .success-card {{
+        width: min(86vw, 620px);
+        margin: 6px auto 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        direction: rtl;
+    }}
+
     .success-text {{
         color: #666666;
-        font-size: 22px;
+        font-size: 21px;
         line-height: 2;
         font-weight: 600;
-        margin: 10px auto 8px auto;
+        text-align: right;
+        flex: 1;
+        min-width: 0;
+    }}
+
+    .qr-box {{
+        width: 165px;
+        height: 165px;
+        flex: 0 0 165px;
+        border: 1px solid rgba(110, 110, 110, 0.18);
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.65);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+    }}
+
+    .qr-box img {{
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
     }}
 
     .qr-note {{
         color: #777777;
-        font-size: 15px;
+        font-size: 14px;
         line-height: 1.8;
-        margin-top: 8px;
+        margin-top: 6px;
+        font-weight: 500;
     }}
 
     .sorry-text {{
@@ -121,7 +154,7 @@ def set_page_style(image_path="background.jpg"):
 
     .home-text {{
         width: min(82vw, 620px);
-        margin: 445px auto 0 auto;
+        margin: 52vh auto 0 auto;
         color: #666666;
         font-size: 21px;
         line-height: 2;
@@ -183,8 +216,14 @@ def set_page_style(image_path="background.jpg"):
 
         .rsvp-area,
         .home-text {{
-            margin-top: 300px;
+            margin-top: 50vh;
             width: 88vw;
+        }}
+
+        .success-card {{
+            width: 88vw;
+            gap: 12px;
+            align-items: center;
         }}
 
         .guest-name {{
@@ -195,8 +234,19 @@ def set_page_style(image_path="background.jpg"):
         .success-text,
         .sorry-text,
         .home-text {{
-            font-size: 17px;
-            line-height: 1.9;
+            font-size: 16px;
+            line-height: 1.8;
+        }}
+
+        .success-text {{
+            text-align: right;
+        }}
+
+        .qr-box {{
+            width: 128px;
+            height: 128px;
+            flex-basis: 128px;
+            padding: 7px;
         }}
 
         .qr-note {{
@@ -320,6 +370,11 @@ def qr_image_bytes(data):
     return buffer
 
 
+def qr_image_base64(data):
+    buffer = qr_image_bytes(data)
+    return base64.b64encode(buffer.getvalue()).decode()
+
+
 def get_query_param(key):
     value = st.query_params.get(key, "")
 
@@ -366,20 +421,20 @@ def page_guest(token):
     """, unsafe_allow_html=True)
 
     if status == "Attending" and qr_code:
+        qr_base64 = qr_image_base64(qr_code)
         st.markdown(
-            """
-            <div class="success-text">
-                تم تأكيد حضوركم بنجاح 🤍<br>
-                يسعدنا مشاركتكم لنا هذه المناسبة
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        st.image(qr_image_bytes(qr_code), width=180)
-        st.markdown(
-            """
-            <div class="qr-note">
-                يرجى إبراز هذا الرمز عند بوابة الدخول
+            f"""
+            <div class="success-card" dir="rtl">
+                <div class="success-text">
+                    تم تأكيد حضوركم بنجاح 🤍<br>
+                    يسعدنا مشاركتكم لنا هذه المناسبة
+                    <div class="qr-note">
+                        يرجى إبراز هذا الرمز عند بوابة الدخول
+                    </div>
+                </div>
+                <div class="qr-box">
+                    <img src="data:image/png;base64,{qr_base64}" alt="QR Code">
+                </div>
             </div>
             </div>
             """,
