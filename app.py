@@ -71,8 +71,8 @@ def set_page_style(image_path="background.jpg"):
     }}
 
     .rsvp-area {{
-        width: min(82vw, 620px);
-        margin: 445px auto 0 auto;
+        margin: 54vh auto 0 auto;
+        width: min(82vw,620px);
         padding: 0 12px;
         text-align: center;
         direction: rtl;
