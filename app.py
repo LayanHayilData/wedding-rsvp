@@ -1,11 +1,4 @@
-st.markdown("""
-<style>
-#MainMenu {visibility: hidden;}
-header {visibility: hidden;}
-footer {visibility: hidden;}
-.stDeployButton {display: none;}
-</style>
-""", unsafe_allow_html=True)
+
 import csv
 import io
 import os
@@ -16,7 +9,14 @@ from urllib.parse import quote
 
 import qrcode
 import streamlit as st
-
+st.markdown("""
+<style>
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+.stDeployButton {display: none;}
+</style>
+""", unsafe_allow_html=True)
 DB_FILE = "wedding.db"
 QR_FOLDER = "qr_codes"
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "LayansEngagement2026")  # غيريها من Streamlit Secrets بعد النشر
