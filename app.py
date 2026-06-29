@@ -14,9 +14,15 @@ st.markdown("""
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
-.stDeployButton {display: none;}
+.stDeployButton {display: none !important;}
+[data-testid="stToolbar"] {display: none !important;}
+[data-testid="stDecoration"] {display: none !important;}
+[data-testid="stStatusWidget"] {display: none !important;}
+[data-testid="stHeader"] {display: none !important;}
+.viewerBadge_container__1QSob {display: none !important;}
 </style>
 """, unsafe_allow_html=True)
+
 DB_FILE = "wedding.db"
 QR_FOLDER = "qr_codes"
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "LayansEngagement2026")  # غيريها من Streamlit Secrets بعد النشر
