@@ -240,7 +240,7 @@ def page_guest(token):
     name = guest["name"]
     status = str(guest["status"])
     qr_code = str(guest["qr_code"])
-   st.markdown(f"""
+       st.markdown(f"""
         <div class="invite-card" dir="rtl">
         
             <div class="title">بسم الله الرحمن الرحيم</div>
