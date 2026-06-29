@@ -77,7 +77,57 @@ COLUMNS = [
     "guest_id", "name", "token", "status", "qr_code",
     "checked_in", "responded_at", "checked_in_at"
 ]
+import base64
 
+def set_background(image_path):
+    with open(image_path, "rb") as img:
+        encoded = base64.b64encode(img.read()).decode()
+
+    st.markdown(f"""
+    <style>
+    .stApp {{
+        background-image: url("data:image/jpg;base64,{encoded}");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }}
+
+    .main-card {{
+        background: rgba(255, 255, 255, 0.72);
+        padding: 35px;
+        border-radius: 25px;
+        max-width: 650px;
+        margin: auto;
+        text-align: center;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    }}
+
+    h1 {{
+        color: #8b7a58;
+        font-size: 52px;
+        text-align: center;
+        font-family: serif;
+    }}
+
+    .subtitle {{
+        color: #8b7a58;
+        font-size: 22px;
+        text-align: center;
+        line-height: 2;
+    }}
+
+    .stButton > button {{
+        background-color: #b7a27a;
+        color: white;
+        border-radius: 25px;
+        border: none;
+        padding: 12px 35px;
+        font-size: 18px;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+    set_background("background.jpg")
 
 def now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
