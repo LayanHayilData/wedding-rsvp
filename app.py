@@ -1,14 +1,16 @@
-
-import csv
 import io
-import os
-import secrets
-import sqlite3
+import uuid
 from datetime import datetime
-from urllib.parse import quote
 
+import pandas as pd
 import qrcode
 import streamlit as st
+import gspread
+from google.oauth2.service_account import Credentials
+
+st.set_page_config(page_title="دعوة زفاف", page_icon="🤍", layout="centered")
+
+# Hide most Streamlit default UI elements
 st.markdown("""
 <style>
 #MainMenu {visibility: hidden;}
@@ -20,353 +22,313 @@ footer {visibility: hidden;}
 [data-testid="stStatusWidget"] {display: none !important;}
 [data-testid="stHeader"] {display: none !important;}
 .viewerBadge_container__1QSob {display: none !important;}
+
+html, body, [class*="css"] {
+    direction: rtl;
+    text-align: center;
+    font-family: "Arial", sans-serif;
+}
+.stApp {
+    background: linear-gradient(180deg, #fffaf2 0%, #ffffff 55%, #fff8ec 100%);
+}
+.invite-card {
+    background: rgba(255,255,255,0.92);
+    border: 1px solid #ead6af;
+    border-radius: 24px;
+    padding: 42px 30px;
+    margin: 20px auto 20px auto;
+    max-width: 760px;
+    box-shadow: 0 20px 50px rgba(143, 103, 34, 0.10);
+}
+.title {
+    color: #a6791b;
+    font-size: 42px;
+    font-weight: 800;
+    margin-bottom: 10px;
+}
+.subtitle {
+    color: #4d3b2a;
+    font-size: 19px;
+    line-height: 2;
+}
+.small-note {
+    color: #806a4a;
+    font-size: 15px;
+}
+.success-box {
+    background: #f7fff7;
+    border: 1px solid #b9e0b9;
+    border-radius: 18px;
+    padding: 22px;
+    margin-top: 18px;
+}
+.warning-box {
+    background: #fff8f0;
+    border: 1px solid #edd3b2;
+    border-radius: 18px;
+    padding: 22px;
+    margin-top: 18px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-DB_FILE = "wedding.db"
-QR_FOLDER = "qr_codes"
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "LayansEngagement2026")  # غيريها من Streamlit Secrets بعد النشر
+SHEET_NAME = "guests"
+COLUMNS = [
+    "guest_id", "name", "token", "status", "qr_code",
+    "checked_in", "responded_at", "checked_in_at"
+]
 
 
-def get_base_url():
-    """Public website link used when exporting guest links."""
-    try:
-        value = st.secrets.get("PUBLIC_BASE_URL", "")
-    except Exception:
-        value = ""
-    value = value or os.getenv("PUBLIC_BASE_URL", "http://localhost:8501")
-    return value.rstrip("/")
-
-
-BASE_URL = get_base_url()
-
-os.makedirs(QR_FOLDER, exist_ok=True)
-
-st.set_page_config(
-    page_title="دعوة زفاف",
-    page_icon="💍",
-    layout="centered",
-)
-
-st.markdown(
-    """
-    <style>
-    .stApp {
-        background: linear-gradient(135deg, #fffaf2 0%, #ffffff 55%, #f7ead2 100%);
-        direction: rtl;
-    }
-    .main-card {
-        background: rgba(255,255,255,0.88);
-        padding: 28px;
-        border-radius: 24px;
-        border: 1px solid #ead7b7;
-        box-shadow: 0 8px 28px rgba(151, 113, 51, 0.12);
-        text-align: center;
-        margin-bottom: 18px;
-    }
-    .title {
-        color: #9b741d;
-        font-size: 36px;
-        font-weight: 700;
-        margin-bottom: 8px;
-    }
-    .subtitle {
-        color: #5f503a;
-        font-size: 18px;
-        line-height: 1.9;
-    }
-    .metric-card {
-        background: white;
-        padding: 14px;
-        border-radius: 16px;
-        border: 1px solid #ead7b7;
-        text-align: center;
-        margin: 4px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-def connect():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def now():
+def now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def init_db_if_missing():
-    conn = connect()
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS guests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            invite_token TEXT UNIQUE NOT NULL,
-            qr_token TEXT UNIQUE,
-            status TEXT NOT NULL DEFAULT 'No response',
-            checked_in INTEGER NOT NULL DEFAULT 0,
-            rsvp_time TEXT,
-            checkin_time TEXT
-        )
-        """
+@st.cache_resource(show_spinner=False)
+def get_worksheet():
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"], scopes=scopes
     )
-    conn.commit()
-    conn.close()
+    client = gspread.authorize(creds)
+    spreadsheet = client.open_by_key(st.secrets["SPREADSHEET_ID"])
+    try:
+        ws = spreadsheet.worksheet(SHEET_NAME)
+    except gspread.WorksheetNotFound:
+        ws = spreadsheet.add_worksheet(title=SHEET_NAME, rows=300, cols=len(COLUMNS))
+        ws.append_row(COLUMNS)
+    return ws
 
 
-def get_guest_by_invite_token(token):
-    conn = connect()
-    guest = conn.execute("SELECT * FROM guests WHERE invite_token = ?", (token,)).fetchone()
-    conn.close()
-    return guest
+def load_df():
+    ws = get_worksheet()
+    records = ws.get_all_records()
+    if not records:
+        return pd.DataFrame(columns=COLUMNS)
+    df = pd.DataFrame(records)
+    for col in COLUMNS:
+        if col not in df.columns:
+            df[col] = ""
+    return df[COLUMNS]
 
 
-def get_guest_by_qr_token(qr_token):
-    conn = connect()
-    guest = conn.execute("SELECT * FROM guests WHERE qr_token = ?", (qr_token,)).fetchone()
-    conn.close()
-    return guest
+def save_df(df):
+    df = df.fillna("")
+    ws = get_worksheet()
+    ws.clear()
+    ws.update([COLUMNS] + df[COLUMNS].astype(str).values.tolist())
 
 
-def accept_invitation(guest_id):
-    conn = connect()
-    guest = conn.execute("SELECT * FROM guests WHERE id = ?", (guest_id,)).fetchone()
+def init_guests_if_needed():
+    df = load_df()
+    if len(df) > 0:
+        return df
 
-    qr_token = guest["qr_token"]
-    if not qr_token:
-        qr_token = secrets.token_urlsafe(24)
+    names = pd.read_csv("guest_names.csv", header=None)[0].dropna().astype(str).str.strip()
+    names = names[names != ""].drop_duplicates().reset_index(drop=True)
 
-    conn.execute(
-        """
-        UPDATE guests
-        SET status = 'Attending', qr_token = ?, rsvp_time = ?
-        WHERE id = ?
-        """,
-        (qr_token, now(), guest_id),
-    )
-    conn.commit()
-    conn.close()
-    return qr_token
-
-
-def decline_invitation(guest_id):
-    conn = connect()
-    conn.execute(
-        """
-        UPDATE guests
-        SET status = 'Not attending', qr_token = NULL, checked_in = 0, rsvp_time = ?, checkin_time = NULL
-        WHERE id = ?
-        """,
-        (now(), guest_id),
-    )
-    conn.commit()
-    conn.close()
+    rows = []
+    for i, name in enumerate(names, start=1):
+        token = uuid.uuid4().hex[:22]
+        rows.append({
+            "guest_id": f"GUEST-{i:03d}",
+            "name": name,
+            "token": token,
+            "status": "No Response",
+            "qr_code": "",
+            "checked_in": "No",
+            "responded_at": "",
+            "checked_in_at": "",
+        })
+    df = pd.DataFrame(rows, columns=COLUMNS)
+    save_df(df)
+    return df
 
 
-def make_qr_image(qr_token):
-    qr_path = os.path.join(QR_FOLDER, f"{qr_token}.png")
-    if not os.path.exists(qr_path):
-        img = qrcode.make(qr_token)
-        img.save(qr_path)
-    return qr_path
+def qr_image_bytes(data):
+    qr = qrcode.QRCode(version=1, box_size=10, border=4)
+    qr.add_data(data)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+    return buffer
 
 
-def get_all_guests():
-    conn = connect()
-    rows = conn.execute("SELECT * FROM guests ORDER BY id").fetchall()
-    conn.close()
-    return rows
+def get_query_param(key):
+    value = st.query_params.get(key, "")
+    if isinstance(value, list):
+        return value[0] if value else ""
+    return value
 
 
-def status_ar(status):
-    if status == "Attending":
-        return "✅ سيحضر"
-    if status == "Not attending":
-        return "❌ اعتذر"
-    return "⏳ لم يرد"
+def update_guest(token, **updates):
+    df = load_df()
+    idx = df.index[df["token"].astype(str) == str(token)]
+    if len(idx) == 0:
+        return False
+    i = idx[0]
+    for k, v in updates.items():
+        if k in df.columns:
+            df.loc[i, k] = v
+    save_df(df)
+    return True
 
 
-def export_csv(rows, base_url=BASE_URL):
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["name", "status", "checked_in", "rsvp_time", "checkin_time", "personal_link"])
-    for r in rows:
-        link = f"{base_url.rstrip('/')}/?token={quote(r['invite_token'])}"
-        writer.writerow([
-            r["name"],
-            r["status"],
-            "Yes" if r["checked_in"] else "No",
-            r["rsvp_time"] or "",
-            r["checkin_time"] or "",
-            link,
-        ])
-    return output.getvalue().encode("utf-8-sig")
+def page_guest(token):
+    df = init_guests_if_needed()
+    match = df[df["token"].astype(str) == str(token)]
 
-
-def show_guest_page(token):
-    guest = get_guest_by_invite_token(token)
-
-    if not guest:
+    if match.empty:
         st.error("الرابط غير صحيح أو غير موجود.")
         return
 
-    st.markdown(
-        f"""
-        <div class="main-card">
-            <div class="title">دعوة زفاف 🤍</div>
-            <div class="subtitle">
-                أهلًا {guest['name']}<br>
-                يسرنا دعوتكم لحضور حفل الزفاف.<br>
-                هل ستشرفوننا بالحضور؟
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    guest = match.iloc[0]
+    name = guest["name"]
+    status = str(guest["status"])
+    qr_code = str(guest["qr_code"])
 
-    if guest["status"] == "Attending" and guest["qr_token"]:
-        st.success("تم تأكيد حضوركم مسبقًا 🤍 هذا رمز الدخول الخاص بكم.")
-        st.image(make_qr_image(guest["qr_token"]), width=260)
+    st.markdown(f"""
+    <div class="invite-card">
+        <div class="title">🤍 دعوة زفاف</div>
+        <div class="subtitle">
+            أهلًا {name}<br>
+            يسرنا دعوتكم لحضور حفل الزفاف.<br>
+            هل ستشرّفوننا بالحضور؟
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if status == "Attending" and qr_code:
+        st.markdown("<div class='success-box'>تم تأكيد حضوركم مسبقًا 🤍<br>هذا رمز الدخول الخاص بكم.</div>", unsafe_allow_html=True)
+        st.image(qr_image_bytes(qr_code), width=260)
         return
 
-    if guest["status"] == "Not attending":
-        st.info("تم تسجيل اعتذاركم. نسعد بدعواتكم الطيبة 🤍")
+    if status == "Not Attending":
+        st.markdown("<div class='warning-box'>شكرًا لإبلاغنا 🤍<br>أذكرونا بدعوة طيبة.</div>", unsafe_allow_html=True)
         return
 
     col1, col2 = st.columns(2)
     with col1:
         if st.button("نعم، سأحضر 🤍", use_container_width=True):
-            qr_token = accept_invitation(guest["id"])
-            st.success("شكراً لتأكيد حضوركم 🤍 هذا رمز الدخول الخاص بكم.")
-            st.image(make_qr_image(qr_token), width=260)
+            qr_code = f"WEDDING-{token}"
+            update_guest(token, status="Attending", qr_code=qr_code, responded_at=now_str())
             st.rerun()
-
     with col2:
         if st.button("أعتذر عن الحضور", use_container_width=True):
-            decline_invitation(guest["id"])
-            st.info("شكرًا لإبلاغنا. نسعد بدعواتكم الطيبة 🤍")
+            update_guest(token, status="Not Attending", qr_code="", responded_at=now_str())
             st.rerun()
 
 
-def password_gate():
-    password = st.text_input("كلمة مرور المنظم", type="password")
-    return password == ADMIN_PASSWORD
+def page_admin():
+    st.title("لوحة المنظم")
+    password = st.text_input("كلمة المرور", type="password")
+    if password != st.secrets.get("ADMIN_PASSWORD", "1234"):
+        st.stop()
 
+    df = init_guests_if_needed()
 
-def show_admin_page():
-    st.markdown("<div class='title'>لوحة المنظم</div>", unsafe_allow_html=True)
-    if not password_gate():
-        st.warning("أدخلي كلمة المرور لعرض لوحة المنظم.")
-        return
-
-    rows = get_all_guests()
-    total = len(rows)
-    attending = sum(1 for r in rows if r["status"] == "Attending")
-    declined = sum(1 for r in rows if r["status"] == "Not attending")
-    no_response = sum(1 for r in rows if r["status"] == "No response")
-    checked = sum(1 for r in rows if r["checked_in"])
+    total = len(df)
+    attending = (df["status"] == "Attending").sum()
+    declined = (df["status"] == "Not Attending").sum()
+    no_response = (df["status"] == "No Response").sum()
+    checked = (df["checked_in"] == "Yes").sum()
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("الإجمالي", total)
     c2.metric("سيحضر", attending)
     c3.metric("اعتذر", declined)
     c4.metric("لم يرد", no_response)
-    c5.metric("دخلوا", checked)
+    c5.metric("تم الدخول", checked)
 
-    public_url = st.text_input(
-        "رابط الموقع العام لاستخدامه داخل الروابط الشخصية",
-        value=BASE_URL,
-        help="بعد نشر الموقع على Streamlit Cloud، الصقي رابط الموقع هنا ثم حملي ملف الروابط."
-    ).rstrip("/")
+    st.subheader("توليد روابط المعازيم")
+    base_url = st.text_input("رابط الموقع العام", value="https://wedding-rsvp-qvkmwn6ca7wmeynuyndi7r.streamlit.app")
+    links_df = df[["guest_id", "name", "status", "checked_in"]].copy()
+    links_df["personal_link"] = links_df["guest_id"].map(lambda _: "")
+    links_df["personal_link"] = df["token"].apply(lambda t: f"{base_url.rstrip('/')}/?token={t}")
 
+    csv = links_df.to_csv(index=False).encode("utf-8-sig")
     st.download_button(
-        "تحميل ملف الحضور والروابط CSV",
-        data=export_csv(rows, public_url),
-        file_name="wedding_dashboard_links.csv",
+        "تحميل ملف روابط المعازيم CSV",
+        data=csv,
+        file_name="guest_links.csv",
         mime="text/csv",
         use_container_width=True,
     )
 
+    st.subheader("جدول المعازيم")
     search = st.text_input("بحث بالاسم")
-    table = []
-    for r in rows:
-        if search and search.strip() not in r["name"]:
-            continue
-        table.append({
-            "الاسم": r["name"],
-            "الحالة": status_ar(r["status"]),
-            "دخل الحفل": "✅" if r["checked_in"] else "❌",
-            "وقت الرد": r["rsvp_time"] or "-",
-            "وقت الدخول": r["checkin_time"] or "-",
-            "الرابط الشخصي": f"{public_url}/?token={r['invite_token']}",
-        })
+    view_df = df.copy()
+    if search:
+        view_df = view_df[view_df["name"].astype(str).str.contains(search, case=False, na=False)]
+    st.dataframe(view_df[["guest_id", "name", "status", "checked_in", "responded_at", "checked_in_at"]], use_container_width=True)
 
-    st.dataframe(table, use_container_width=True, hide_index=True)
+    st.download_button(
+        "تحميل كل البيانات CSV",
+        data=df.to_csv(index=False).encode("utf-8-sig"),
+        file_name="wedding_responses.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
 
 
-def show_checkin_page():
-    st.markdown("<div class='title'>تسجيل الدخول للحفل</div>", unsafe_allow_html=True)
-    if not password_gate():
-        st.warning("أدخلي كلمة المرور لفتح صفحة الدخول.")
+def page_checkin():
+    st.title("تسجيل دخول الحفل")
+    password = st.text_input("كلمة مرور المنظم", type="password")
+    if password != st.secrets.get("ADMIN_PASSWORD", "1234"):
+        st.stop()
+
+    scanned = st.text_input("امسح/اكتب رمز QR هنا")
+    if not scanned:
+        st.info("انتظار مسح الرمز...")
         return
 
-    scanned = st.text_input("امسحي QR أو الصقي الكود هنا")
-    if scanned:
-        scanned = scanned.strip()
-        guest = get_guest_by_qr_token(scanned)
+    df = load_df()
+    match = df[df["qr_code"].astype(str) == str(scanned).strip()]
+    if match.empty:
+        st.error("رمز غير صحيح. لا يسمح بالدخول.")
+        return
 
-        if not guest:
-            st.error("❌ الرمز غير صحيح. لا يسمح بالدخول.")
-            return
+    idx = match.index[0]
+    guest = df.loc[idx]
+    if guest["checked_in"] == "Yes":
+        st.error(f"تم استخدام هذا الرمز مسبقًا. لا يسمح بالدخول. الاسم: {guest['name']}")
+        return
 
-        if guest["status"] != "Attending":
-            st.error("❌ هذا الضيف لم يؤكد الحضور.")
-            return
-
-        if guest["checked_in"]:
-            st.error(f"❌ تم استخدام هذا الرمز مسبقًا. لا يسمح بالدخول مرة أخرى. الاسم: {guest['name']}")
-            return
-
-        conn = connect()
-        conn.execute(
-            "UPDATE guests SET checked_in = 1, checkin_time = ? WHERE id = ?",
-            (now(), guest["id"]),
-        )
-        conn.commit()
-        conn.close()
-        st.success(f"✅ أهلًا {guest['name']}، تم السماح بالدخول.")
+    df.loc[idx, "checked_in"] = "Yes"
+    df.loc[idx, "checked_in_at"] = now_str()
+    save_df(df)
+    st.success(f"أهلًا {guest['name']} 🤍 تم السماح بالدخول.")
 
 
-def show_home():
-    st.markdown(
-        """
-        <div class="main-card">
-            <div class="title">نظام دعوات الزفاف 💍</div>
-            <div class="subtitle">
-                هذه الصفحة الرئيسية. افتحي رابط الضيف الشخصي لعرض الدعوة الخاصة به.<br>
-                للمنظم: استخدمي الروابط التالية.
-            </div>
+def page_home():
+    st.markdown("""
+    <div class="invite-card">
+        <div class="title">🤍 دعوة زفاف</div>
+        <div class="subtitle">
+            الرجاء استخدام الرابط الشخصي المرسل لكم لتأكيد الحضور.
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.write(f"لوحة المنظم: {BASE_URL}/?admin=1")
-    st.write(f"صفحة الدخول: {BASE_URL}/?checkin=1")
+        <div class="small-note">هذا الرابط خاص بكل معزوم.</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
-init_db_if_missing()
-params = st.query_params
+try:
+    token = get_query_param("token")
+    admin = get_query_param("admin")
+    checkin = get_query_param("checkin")
 
-if "token" in params:
-    show_guest_page(params["token"])
-elif "admin" in params:
-    show_admin_page()
-elif "checkin" in params:
-    show_checkin_page()
-else:
-    show_home()
+    if admin == "1":
+        page_admin()
+    elif checkin == "1":
+        page_checkin()
+    elif token:
+        page_guest(token)
+    else:
+        page_home()
+except Exception as e:
+    st.error("حدث خطأ في إعدادات التطبيق. تأكدي من وضع Secrets الخاصة بـ Google Sheets في Streamlit Cloud.")
+    st.caption(str(e))
