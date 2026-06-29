@@ -26,17 +26,16 @@ def set_page_style(image_path="background.jpg"):
             encoded = base64.b64encode(img.read()).decode()
 
         app_background = f"""
-            background-image:
-                linear-gradient(rgba(255, 250, 242, 0.18), rgba(255, 250, 242, 0.18)),
-                url("data:image/jpg;base64,{encoded}");
+            background-image: url("data:image/jpg;base64,{encoded}");
             background-size: cover;
             background-position: center top;
             background-repeat: no-repeat;
-            background-attachment: fixed;
+            background-attachment: scroll;
+            background-color: #f8f6f0;
         """
     except FileNotFoundError:
         app_background = """
-            background: linear-gradient(180deg, #fffaf2 0%, #ffffff 55%, #fff8ec 100%);
+            background: #f8f6f0;
         """
 
     st.markdown(f"""
@@ -61,110 +60,115 @@ def set_page_style(image_path="background.jpg"):
     }}
 
     .block-container {{
-        padding-top: 4rem;
-        padding-bottom: 3rem;
-        max-width: 850px;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        max-width: 100% !important;
+        min-height: 100vh;
     }}
 
-    .main-card,
-    .invite-card {{
-        background: rgba(255, 255, 255, 0.76);
-        border: 1px solid rgba(210, 182, 125, 0.58);
-        border-radius: 30px;
-        padding: 42px 34px;
-        margin: 24px auto;
-        max-width: 720px;
-        box-shadow: 0 20px 55px rgba(95, 70, 30, 0.12);
+    div[data-testid="stVerticalBlock"] {{
+        gap: 0.3rem;
+    }}
+
+    .rsvp-area {{
+        width: min(82vw, 620px);
+        margin: 445px auto 0 auto;
+        padding: 0 12px;
         text-align: center;
         direction: rtl;
-    }}
-
-    .main-card {{
-        margin-top: 145px;
-    }}
-
-    .big-title {{
-        color: #8b744d;
-        font-size: 58px;
-        font-weight: 800;
-        margin-bottom: 16px;
-        line-height: 1.5;
-        font-family: "Times New Roman", serif;
-        text-align: center;
-    }}
-
-    .title {{
-        color: #8b744d;
-        font-size: 38px;
-        font-weight: 800;
-        margin-bottom: 18px;
-        line-height: 1.7;
-        font-family: "Times New Roman", serif;
-        text-align: center;
-    }}
-
-    .subtitle {{
-        color: #4f4232;
-        font-size: 20px;
-        line-height: 2.15;
-        text-align: center;
-        margin: 0 auto;
+        color: #666666;
     }}
 
     .guest-name {{
-        color: #8b744d;
-        font-size: 25px;
-        font-weight: 800;
+        color: #666666;
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        margin-bottom: 12px;
+        line-height: 1.8;
     }}
 
-    .small-note {{
-        color: #806a4a;
+    .rsvp-text {{
+        color: #6d6d6d;
+        font-size: 21px;
+        line-height: 2;
+        font-weight: 500;
+        margin-bottom: 16px;
+    }}
+
+    .success-text {{
+        color: #666666;
+        font-size: 22px;
+        line-height: 2;
+        font-weight: 600;
+        margin: 10px auto 8px auto;
+    }}
+
+    .qr-note {{
+        color: #777777;
         font-size: 15px;
-        line-height: 2;
-        margin-top: 12px;
+        line-height: 1.8;
+        margin-top: 8px;
     }}
 
-    .success-box {{
-        background: rgba(247, 255, 247, 0.90);
-        border: 1px solid #b9e0b9;
-        border-radius: 20px;
-        padding: 22px;
-        margin: 18px auto;
-        max-width: 650px;
-        color: #355c35;
-        font-size: 18px;
+    .sorry-text {{
+        color: #666666;
+        font-size: 22px;
         line-height: 2;
+        font-weight: 600;
+        margin-top: 18px;
+    }}
+
+    .home-text {{
+        width: min(82vw, 620px);
+        margin: 445px auto 0 auto;
+        color: #666666;
+        font-size: 21px;
+        line-height: 2;
+        font-weight: 500;
         text-align: center;
     }}
 
-    .warning-box {{
-        background: rgba(255, 248, 240, 0.92);
-        border: 1px solid #edd3b2;
+    .admin-wrap {{
+        background: rgba(255, 255, 255, 0.90);
+        border: 1px solid rgba(160, 160, 160, 0.25);
         border-radius: 20px;
-        padding: 22px;
-        margin: 18px auto;
-        max-width: 650px;
-        color: #6d5030;
-        font-size: 18px;
-        line-height: 2;
-        text-align: center;
+        padding: 24px;
+        margin: 40px auto;
+        max-width: 1100px;
+        text-align: right;
     }}
 
     .stButton > button {{
-        background-color: #b7a27a;
-        color: white;
-        border-radius: 28px;
-        border: none;
-        padding: 12px 28px;
+        background-color: transparent;
+        color: #666666;
+        border: 1.5px solid #9a9a9a;
+        border-radius: 0;
+        padding: 10px 30px;
         font-size: 18px;
-        font-weight: 700;
-        box-shadow: 0 10px 24px rgba(95, 70, 30, 0.14);
+        font-weight: 600;
+        box-shadow: none;
+        min-height: 45px;
     }}
 
     .stButton > button:hover {{
-        background-color: #9e895f;
-        color: white;
-        border: none;
+        background-color: rgba(255, 255, 255, 0.35);
+        color: #444444;
+        border: 1.5px solid #666666;
+    }}
+
+    div[data-testid="stImage"] {{
+        display: flex;
+        justify-content: center;
+        margin-top: 2px;
+        margin-bottom: 0;
+    }}
+
+    div[data-testid="stImage"] img {{
+        border: 1px solid rgba(110, 110, 110, 0.18);
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.55);
+        max-width: 190px !important;
     }}
 
     input, textarea {{
@@ -173,33 +177,39 @@ def set_page_style(image_path="background.jpg"):
     }}
 
     @media (max-width: 600px) {{
-        .block-container {{
-            padding-top: 3rem;
+        .stApp {{
+            background-size: 100% auto;
         }}
 
-        .main-card {{
-            margin-top: 95px;
+        .rsvp-area,
+        .home-text {{
+            margin-top: 300px;
+            width: 88vw;
         }}
 
-        .main-card,
-        .invite-card {{
-            padding: 32px 22px;
-            border-radius: 24px;
-            margin-left: 8px;
-            margin-right: 8px;
+        .guest-name {{
+            font-size: 22px;
         }}
 
-        .big-title {{
-            font-size: 46px;
+        .rsvp-text,
+        .success-text,
+        .sorry-text,
+        .home-text {{
+            font-size: 17px;
+            line-height: 1.9;
         }}
 
-        .title {{
-            font-size: 31px;
+        .qr-note {{
+            font-size: 13px;
         }}
 
-        .subtitle {{
-            font-size: 18px;
-            line-height: 2;
+        .stButton > button {{
+            font-size: 15px;
+            padding: 8px 14px;
+        }}
+
+        div[data-testid="stImage"] img {{
+            max-width: 150px !important;
         }}
     }}
     </style>
@@ -297,11 +307,11 @@ def init_guests_if_needed():
 
 
 def qr_image_bytes(data):
-    qr = qrcode.QRCode(version=1, box_size=10, border=4)
+    qr = qrcode.QRCode(version=1, box_size=8, border=2)
     qr.add_data(data)
     qr.make(fit=True)
 
-    img = qr.make_image(fill_color="black", back_color="white")
+    img = qr.make_image(fill_color="#555555", back_color="white")
 
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
@@ -350,26 +360,59 @@ def page_guest(token):
     status = str(guest["status"])
     qr_code = str(guest["qr_code"])
 
+    st.markdown(f"""
+    <div class="rsvp-area" dir="rtl">
+        <div class="guest-name">أهلًا وسهلًا {name}</div>
+    """, unsafe_allow_html=True)
 
     if status == "Attending" and qr_code:
         st.markdown(
-            "<div class='success-box'>تم تأكيد حضوركم مسبقًا 🤍<br>هذا رمز الدخول الخاص بكم.</div>",
+            """
+            <div class="success-text">
+                تم تأكيد حضوركم بنجاح 🤍<br>
+                يسعدنا مشاركتكم لنا هذه المناسبة
+            </div>
+            """,
             unsafe_allow_html=True
         )
-        st.image(qr_image_bytes(qr_code), width=260)
+        st.image(qr_image_bytes(qr_code), width=180)
+        st.markdown(
+            """
+            <div class="qr-note">
+                يرجى إبراز هذا الرمز عند بوابة الدخول
+            </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
         return
 
     if status == "Not Attending":
         st.markdown(
-            "<div class='warning-box'>شكرًا لإبلاغنا 🤍<br>أذكرونا بدعوة طيبة.</div>",
+            """
+            <div class="sorry-text">
+                شكرًا لإبلاغنا 🤍<br>
+                أذكرونا بدعوة طيبة
+            </div>
+            </div>
+            """,
             unsafe_allow_html=True
         )
         return
 
+    st.markdown(
+        """
+        <div class="rsvp-text">
+            نرجو منكم تأكيد الحضور
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("نعم، سأحضر 🤍", use_container_width=True):
+        if st.button("نعم، سأحضر", use_container_width=True):
             qr_code = f"MALKA-{token}"
             update_guest(
                 token,
@@ -389,8 +432,12 @@ def page_guest(token):
             )
             st.rerun()
 
+    st.markdown("</div>", unsafe_allow_html=True)
+
 
 def page_admin():
+    st.markdown("<div class='admin-wrap'>", unsafe_allow_html=True)
+
     st.title("لوحة المنظم")
 
     password = st.text_input("كلمة المرور", type="password")
@@ -461,8 +508,12 @@ def page_admin():
         use_container_width=True,
     )
 
+    st.markdown("</div>", unsafe_allow_html=True)
+
 
 def page_checkin():
+    st.markdown("<div class='admin-wrap'>", unsafe_allow_html=True)
+
     st.title("تسجيل دخول الملكة")
 
     password = st.text_input("كلمة مرور المنظم", type="password")
@@ -496,17 +547,14 @@ def page_checkin():
 
     st.success(f"أهلًا {guest['name']} 🤍 تم السماح بالدخول.")
 
+    st.markdown("</div>", unsafe_allow_html=True)
+
 
 def page_home():
     st.markdown("""
-    <div class="main-card" dir="rtl">
-        <div class="big-title">ملكة</div>
-        <div class="subtitle">
-            الرجاء استخدام الرابط الشخصي المرسل لكم لتأكيد الحضور.
-        </div>
-        <div class="small-note">
-            هذا الرابط خاص بكل معزوم.
-        </div>
+    <div class="home-text" dir="rtl">
+        الرجاء استخدام الرابط الشخصي المرسل لكم لتأكيد الحضور.<br>
+        هذا الرابط خاص بكل معزوم.
     </div>
     """, unsafe_allow_html=True)
 
