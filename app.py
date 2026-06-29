@@ -366,15 +366,72 @@ def page_guest(token):
     """, unsafe_allow_html=True)
 
     if status == "Attending" and qr_code:
-        st.markdown(
-            """
-            <div class="success-text">
-                تم تأكيد حضوركم بنجاح 🤍<br>
-                يسعدنا مشاركتكم لنا هذه المناسبة
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        .success-box {
+    width: 90%;
+    max-width: 620px;
+    margin: 35px auto;
+    padding: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 25px;
+    background: rgba(255,255,255,0.35);
+    border-radius: 22px;
+}
+
+.success-text {
+    flex: 1;
+    text-align: right;
+    color: #6f6f6f;
+}
+
+.success-text h3 {
+    font-size: 24px;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
+.success-text p {
+    font-size: 18px;
+    margin-bottom: 18px;
+}
+
+.success-text small {
+    font-size: 14px;
+}
+
+.qr-box {
+    width: 180px;
+    height: 180px;
+    background: white;
+    border-radius: 16px;
+    padding: 12px;
+    flex-shrink: 0;
+}
+
+.qr-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+@media (max-width: 600px) {
+    .success-box {
+        flex-direction: column;
+        text-align: center;
+        margin-top: 25px;
+    }
+
+    .success-text {
+        text-align: center;
+    }
+
+    .qr-box {
+        width: 170px;
+        height: 170px;
+    }
+}
+       
         st.image(qr_image_bytes(qr_code), width=180)
         st.markdown(
             """
