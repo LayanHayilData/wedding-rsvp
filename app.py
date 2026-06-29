@@ -10,7 +10,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-st.set_page_config(page_title="دعوة ملكة", page_icon="🤍", layout="centered")
+st.set_page_config(page_title="دعوة", page_icon="🤍", layout="centered")
 
 SHEET_NAME = "guests"
 
